@@ -122,4 +122,4 @@ GPL(2)
 
 ##Credits
 
-This module was sponsored by [Valan](https://processwire.com/talk/user/1193-valan/)
+This module was sponsored by [Andrey Valiev](https://processwire.com/talk/user/1193-valan/)
