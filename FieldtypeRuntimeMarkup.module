@@ -1,0 +1,179 @@
+<?php
+
+/**
+ * FieldtypeRuntimeMarkup for ProcessWire.
+ *
+ * ProcessWire Fieldtype that allows markup to be dynamically returned from custom PHP snippet
+ * to be output in the page editor and frontend (via API).
+ *
+ * Note that this is a runtime-only field and can't be queried via selectors since its value
+ * only exists at runtime. 
+ *
+ * This fieldtype extends FieldtypeText so that it can reuse the TextFormatters 
+ * functionality already implemented there. 
+ * 
+ * @author Kongondo <kongondo@gmail.com>
+ * @sponsored by Valan
+ * 
+ * Includes some code from from Ryan Cramer's FieldtypeConcat. 
+ *
+ * Lincensed under GNU/GPL v2.
+ *
+ * https://github.com/kongondo/FieldtypeRuntimeMarkup
+ * Created August 2015
+ *
+ * ProcessWire 2.x 
+ * Copyright (C) 2015 by Ryan Cramer 
+ * Licensed under GNU/GPL v2, see LICENSE.TXT
+ * 
+ * http://processwire.com
+ *
+ *
+ */
+
+class FieldtypeRuntimeMarkup extends FieldtypeText {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'RuntimeMarkup',
+			'version' => 001,
+			'href' => 'https://processwire.com/talk/topic/xxxx/',
+			'summary' => 'Allows rendering of custom markup within page editor and frontend via custom PHP snippet set in the field.',
+			'author' => 'Kongondo',
+			);
+	}
+
+	public function init() {
+		$this->set('runtimeFields', '');
+	}
+
+	/**
+	 * Return the required Inputfield used to populate a field of this type
+	 *
+	 */
+	public function getInputfield(Page $page, Field $field) {		
+
+		$inputfield = $this->modules->get("InputfieldRuntimeMarkup");
+
+		$inputfield->set('runtimeFields', $field->runtimeFields);
+
+		return $inputfield;
+	}
+
+	/**
+	 * Return the field required to configure an instance of FieldtypeTextarea
+	 * This will hold custom PHP snippet
+	 * The snippet should return a string/integer (markup) only
+	 */
+	public function ___getConfigInputfields(Field $field) {
+		
+		$inputfields = parent::___getConfigInputfields($field);
+
+		$f = $this->modules->get('InputfieldTextarea'); 
+		$f->attr('name', 'runtimeFields');
+		$f->attr('value', $field->runtimeFields); 
+		$f->label = $this->_('Custom PHP code to generate markup');
+		$f->description = $this->_('Enter valid PHP code to return custom markup. This statement has access to the $page and $pages API variables, where $page refers to the page being edited. The snippet should only return strings and integers. Anything else will result in an error');
+		$f->notes = $this->_('Example: return $page->parent->parent->title;');
+
+		$inputfields->append($f);
+		
+		return $inputfields; 
+	}
+
+	/**
+	 * Create the populated runtime markup string for the given $field on $page
+	 *
+	 * @return str Non-formatted markup string
+	 *
+	 */
+	protected function renderMarkup(Page $page, Field $field) {
+
+		//if code field is empty return early
+		if(!$field->runtimeFields) return;
+
+		//locally scope $pages to eval()
+		$pages = $this->wire('pages');
+
+		$str = eval($field->runtimeFields);
+
+		//since we are dealing with custom PHP code but also want to make sure that only markup is returned
+		//if eval() returns anything other than a string or an integer, we throw an error (e.g. if an object or array is returned)
+		if (is_string($str) || is_int($str)) return $str;
+		//we need to check if we are in admin. Otherwise with an error, in the frontend the name of the the Fieldtype is returned if we echo out the field
+		elseif($this->wire('process')->className() == 'ProcessPageEdit') return $this->error($this->_('Only strings and integers should be returned by your custom code! Check if your code is valid.'));
+		
+	}
+
+	###########################################################################################
+
+	/**
+	 * The following functions are defined as replacements to keep this fieldtype out of the DB
+	 *
+	 */
+
+	public function sanitizeValue(Page $page, Field $field, $value) {
+		return $value; 
+	}
+
+	public function ___wakeupValue(Page $page, Field $field, $value) {
+		return $this->renderMarkup($page, $field);
+	}
+
+	public function ___sleepValue(Page $page, Field $field, $value) {
+		return $this->renderMarkup($page, $field);
+	}
+
+	public function getLoadQuery(Field $field, DatabaseQuerySelect $query) {
+		// prevent loading from DB
+		return $query; 
+	}
+
+	public function ___loadPageField(Page $page, Field $field) {
+		// generate value at runtime rather than loading from DB
+		return $this->renderMarkup($page, $field); 
+	}
+
+	public function ___savePageField(Page $page, Field $field) {
+		// prevent saving of field
+		return true;
+	}
+
+	public function ___deletePageField(Page $page, Field $field) {
+		// deleting of page field not necessary
+		return true; 
+	}
+
+	public function ___deleteField(Field $field) {
+		// deleting of field not necessary
+		return true; 
+	}
+
+	public function getDatabaseSchema(Field $field) {
+		// no database schema necessary
+		return array();
+	}
+
+	public function ___createField(Field $field) {
+		// nothing necessary to create the field
+		return true; 
+	}
+
+	public function getMatchQuery($query, $table, $subfield, $operator, $value) {
+		// we don't allow this field to be queried
+		throw new WireException("Field '{$query->field->name}' is runtime and not queryable");
+	}
+	
+	public function ___getCompatibleFieldtypes(Field $field) {
+		// no fieldtypes are compatible
+		return new Fieldtypes();
+	}
+
+	public function getLoadQueryAutojoin(Field $field, DatabaseQuerySelect $query) {
+		// we don't allow this field to be autojoined
+		return null;
+	}
+
+
+}
+
