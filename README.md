@@ -28,7 +28,7 @@ Enter your custom PHP snippet in the **Details** tab of your field. Your code ca
 
 FieldtypeRuntimeMarkup has access to $page (the current page being edited/viewed) and $pages.
 
-You can use the included but blank InputfieldRuntimeMarkup.css file to add styles to customise your rendered markup in the page edit in the admin, i.e. the rendered InputfieldRuntimeMarkup.
+You can use the included but blank **InputfieldRuntimeMarkup.css** file to add styles to customise your rendered markup in the page edit in the admin, i.e. the rendered InputfieldRuntimeMarkup.
 
 A very simple example.
 
@@ -88,14 +88,14 @@ return $str;
 
 ###How to access the value of RuntimeMarkup in the frontend
 
-Access the field on this page
+Access the field on this page like any other field.
 
 ```php
 echo $page->runtime_markup;
 
 ```
 
-Access the field on another page
+Access the field on another page like any other field.
 
 ```php
 echo $pages->get('/about-us/')->runtime_markup;
@@ -114,7 +114,7 @@ echo $pages->get('/about-us/')->runtime_markup;
 Initial Release.
 
 ##Resources
- [Support Forum](https://processwire.com/talk/topic/xxxxxxxxxx/)
+ [Support Forum](https://processwire.com/talk/topic/10804-module-runtimemarkup-fieldtype-inputfield/)
 
 ##License
 GPL(2)
