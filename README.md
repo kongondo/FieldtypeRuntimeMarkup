@@ -6,9 +6,15 @@ The value for the fieldtype is generated at runtime. No data is saved in the dat
 
 The field's value is accessible from the ProcessWire API in the frontend like any other field, i.e. it has access to **$page** and **$pages**.
 
+##Screenshots
+
+###Backend
 <img src='https://github.com/kongondo/FieldtypeRuntimeMarkup/raw/master/screenshot1.png' />
 <img src='https://github.com/kongondo/FieldtypeRuntimeMarkup/raw/master/screenshot2.png' />
 
+
+###Frontend
+<img src='https://github.com/kongondo/FieldtypeRuntimeMarkup/raw/master/screenshot3.png' />
 
 ## Install
 
