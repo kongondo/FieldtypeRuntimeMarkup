@@ -38,7 +38,7 @@ class InputfieldRuntimeMarkup extends Inputfield {
 	}
 
 	/**
-	 * Render the entire input area for a Valan
+	 * Render the entire markup returned from FieldtypeRuntimeMarkup
 	 *
 	 */
 	public function ___render() {
