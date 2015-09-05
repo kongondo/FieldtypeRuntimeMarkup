@@ -34,7 +34,7 @@ Enter your custom PHP snippet in the **Details** tab of your field. Your code ca
 
 FieldtypeRuntimeMarkup has access to $page (the current page being edited/viewed) and $pages.
 
-You can use the included but blank **InputfieldRuntimeMarkup.css** and **InputfieldRuntimeMarkup.js**files to add styles and scripts respectively to customise your rendered markup in the page edit in the admin, i.e. the rendered InputfieldRuntimeMarkup.
+You can use the included but blank **InputfieldRuntimeMarkup.css** and **InputfieldRuntimeMarkup.js** files to add styles and scripts respectively to customise your rendered markup in the page edit in the admin, i.e. the rendered InputfieldRuntimeMarkup.
 
 A very simple example.
 
