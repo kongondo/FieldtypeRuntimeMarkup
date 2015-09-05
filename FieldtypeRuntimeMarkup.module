@@ -37,7 +37,7 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		return array(
 			'title' => 'RuntimeMarkup',
 			'version' => 001,
-			'href' => 'https://processwire.com/talk/topic/xxxx/',
+			'href' => 'https://processwire.com/talk/topic/10804-module-runtimemarkup-fieldtype-inputfield/',
 			'summary' => 'Allows rendering of custom markup within page editor and frontend via custom PHP snippet set in the field.',
 			'author' => 'Kongondo',
 			);
