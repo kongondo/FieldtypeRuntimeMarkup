@@ -1,1 +1,52 @@
 /*Use this file to style your renderend Markup in the page edit in admin, i.e. in the rendered InputfieldRuntimeMarkup*/
+
+table.InputfieldRuntimeMarkup {
+
+	width: 100%;
+}
+
+.InputfieldRuntimeMarkup table tr {
+	border: none; 
+}
+
+.InputfieldRuntimeMarkup th {
+	padding-bottom: 5px;
+	font-weight: bold;
+	text-align: left;
+}
+
+.InputfieldRuntimeMarkup tr:hover td {
+	background: #eee; 
+}
+
+.InputfieldRuntimeMarkup input[type=text] {
+	width: 100%; 
+}
+.InputfieldRuntimeMarkup th,
+.InputfieldRuntimeMarkup td {
+	padding: 6px 2px; 
+	border-bottom: 1px solid #ddd; 
+}
+
+
+.InputfieldRuntimeMarkup tbody > tr > td.RowHeader {
+
+	padding-right: 10px;
+}
+
+.InputfieldRuntimeMarkup tr > td:first-child { 
+	/*font-weight: bold;*/
+	color: #9ec5d2;
+}
+
+
+.InputfieldRuntimeMarkup td {
+	vertical-align: middle;
+}
+
+div#hidden {
+
+	/*display: none;*/
+
+	margin-top: 5em;
+}
