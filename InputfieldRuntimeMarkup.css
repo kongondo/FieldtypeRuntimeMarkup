@@ -50,3 +50,31 @@ div#hidden {
 
 	margin-top: 5em;
 }
+
+span#prev, span#next {
+
+	display: inline-block;
+	font-size: 1em;
+}
+
+span#next {
+
+	float: right;
+}
+
+span#prev_next {
+
+	display: inline-block;
+	font-size: 0.85em;
+	color: purple;
+	left: 45%;
+	position: absolute;
+	font-weight: bold;
+	color: #9BC1AB;
+
+}
+
+span#prev a, span#next a {
+
+	color: #568B6C;
+}
