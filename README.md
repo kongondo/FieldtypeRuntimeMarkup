@@ -115,6 +115,8 @@ echo $pages->get('/about-us/')->runtime_markup;
 
 ##Changelog
 
+###Version 0.0.2
+Added markupValue() method for correctly rendering markup output in listers.
 
 ###Version 0.0.1
 Initial Release.
