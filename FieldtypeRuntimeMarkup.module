@@ -36,10 +36,10 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 	public static function getModuleInfo() {
 		return array(
 			'title' => 'RuntimeMarkup',
-			'version' => 001,
+			'author' => 'Francis Otieno (Kongondo)',
+			'version' => 002,
 			'href' => 'https://processwire.com/talk/topic/10804-module-runtimemarkup-fieldtype-inputfield/',
-			'summary' => 'Allows rendering of custom markup within page editor and frontend via custom PHP snippet set in the field.',
-			'author' => 'Kongondo',
+			'summary' => 'Allows rendering of custom markup within page editor and frontend via custom PHP snippet set in the field.',			
 			);
 	}
 
@@ -103,6 +103,23 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		//we need to check if we are in admin. Otherwise with an error, in the frontend the name of the the Fieldtype is returned if we echo out the field
 		elseif($this->wire('process')->className() == 'ProcessPageEdit') return $this->error($this->_('Only strings and integers should be returned by your custom code! Check if your code is valid.'));
 		
+	}
+
+	/**
+	 * Render a markup string of the value
+	 * 
+	 * This is important for correctly rendering markup output in listers.
+	 *
+	 * @param Page $page Page that $value comes from
+	 * @param Field $field Field that $value comes from
+	 * @param mixed $value Optionally specify the $page->getFormatted(value), value must be a formatted value. 
+	 * 	If null or not specified (recommended), it will be retrieved automatically.
+	 * @param string $property Optionally specify the property or index to render. If omitted, entire value is rendered.
+	 * @return string|MarkupFieldtype Returns a string or object that can be output as a string, ready for output.
+	 *
+	 */
+	public function ___markupValue(Page $page, Field $field, $value = null, $property = '') {
+		return $value;
 	}
 
 	###########################################################################################
