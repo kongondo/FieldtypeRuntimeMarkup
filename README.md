@@ -148,7 +148,7 @@ echo $pages->get('/about-us/')->runtime_markup;
 
 ## Warnings and Considerations
 
-- Although access to ProcessWire's Fields' admin pages is only available to Superusers, if you use the pasted PHP option, this Fieldtype will evaluate and run the custom PHP code entered and saved in the field's settings (Details tab). Utmost care should therefore be taken in making sure your code does not perform any CRUD operations (unless of course that's intentional). The same is true if using the render PHP file option.
+- Although access to ProcessWire's Fields' admin pages is only available to Superusers, if you use the paste PHP option, this Fieldtype will evaluate and run the custom PHP code entered and saved in the field's settings (Details tab). Utmost care should therefore be taken in making sure your code does not perform any CRUD operations (unless of course that's intentional). The same is true if using the render PHP file option.
 - The value for this Fieldtype is generated at runtime and thus no data is stored in the database. This means that you cannot directly query a RuntimeMarkup field from **$pages->find()**.
 
 ## Changelog
