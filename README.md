@@ -132,6 +132,8 @@ You can optionally use JavaScript and CSS files by specifying these in the field
 
 ### How to access the value of RuntimeMarkup in the frontend
 
+**Please note that this is only available when you use the paste PHP code option.**
+
 Access the field on this page like any other field.
 
 ```php

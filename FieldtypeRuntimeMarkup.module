@@ -258,20 +258,18 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 	protected function renderMarkup(Page $page, Field $field) {
 
 		// @note: currently, only runtime PHP code returned here, i.e. no rendering PHP files
+		if(1 == $field->runtimeCodeMode && $field->runtimeCustomPHPCode) {
+			// locally scope $pages to eval()
+			$pages = $this->wire('pages');
 
-		// if code field is empty return early
-		if(!$field->runtimeCustomPHPCode) return;
+			$str = eval($field->runtimeCustomPHPCode);
 
-		// locally scope $pages to eval()
-		$pages = $this->wire('pages');
-
-		$str = eval($field->runtimeCustomPHPCode);
-
-		// since we are dealing with custom PHP code but also want to make sure that only markup is returned
-		// if eval() returns anything other than a string or an integer, we throw an error (e.g. if an object or array is returned)
-		if (is_string($str) || is_int($str)) return $str;
-		// we need to check if we are in admin. Otherwise with an error, in the frontend the name of the the Fieldtype is returned if we echo out the field
-		elseif($this->wire('process')->className() == 'ProcessPageEdit') return $this->error($this->_('Only strings and integers should be returned by your custom code! Check if your code is valid.'));
+			// since we are dealing with custom PHP code but also want to make sure that only markup is returned
+			// if eval() returns anything other than a string or an integer, we throw an error (e.g. if an object or array is returned)
+			if (is_string($str) || is_int($str)) return $str;
+			// we need to check if we are in admin. Otherwise with an error, in the frontend the name of the the Fieldtype is returned if we echo out the field
+			elseif($this->wire('process')->className() == 'ProcessPageEdit') return $this->error($this->_('Only strings and integers should be returned by your custom code! Check if your code is valid.'));
+		}		
 		
 	}
 
