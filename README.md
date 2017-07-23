@@ -6,14 +6,14 @@ The value for the Fieldtype is generated at runtime. No data is saved in the dat
 
 The field's value is accessible from the ProcessWire API in the frontend like any other field, i.e. it has access to **$page** and **$pages**.
 
-##Screenshots
+## Screenshots
 
-###Backend
+### Backend
 <img src='https://github.com/kongondo/FieldtypeRuntimeMarkup/raw/master/screenshot1.png' />
 <img src='https://github.com/kongondo/FieldtypeRuntimeMarkup/raw/master/screenshot2.png' />
 
 
-###Frontend
+### Frontend
 <img src='https://github.com/kongondo/FieldtypeRuntimeMarkup/raw/master/screenshot3.png' />
 
 ## Install
@@ -130,7 +130,7 @@ return $str;
 
 You can optionally use JavaScript and CSS files by specifying these in the field's settings. If you wish, you can also use the included but blank **InputfieldRuntimeMarkup.css** and **InputfieldRuntimeMarkup.js** files to add styles and scripts respectively to customise your rendered markup in the page edit in the admin, i.e. the rendered InputfieldRuntimeMarkup. This is not recommended though as those files will be overwritten when you update the module.
 
-###How to access the value of RuntimeMarkup in the frontend
+### How to access the value of RuntimeMarkup in the frontend
 
 Access the field on this page like any other field.
 
@@ -146,7 +146,7 @@ echo $pages->get('/about-us/')->runtime_markup;
 
 ```
 
-##Warnings and Considerations
+## Warnings and Considerations
 
 - Although access to ProcessWire's Fields' admin pages is only available to Superusers, if you use the pasted PHP option, this Fieldtype will evaluate and run the custom PHP code entered and saved in the field's settings (Details tab). Utmost care should therefore be taken in making sure your code does not perform any CRUD operations (unless of course that's intentional). The same is true if using the render PHP file option.
 - The value for this Fieldtype is generated at runtime and thus no data is stored in the database. This means that you cannot directly query a RuntimeMarkup field from **$pages->find()**.
