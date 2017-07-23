@@ -258,7 +258,7 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 	protected function renderMarkup(Page $page, Field $field) {
 
 		// @note: currently, only runtime PHP code returned here, i.e. no rendering PHP files
-		if(1 == $field->runtimeCodeMode && $field->runtimeCustomPHPCode) {
+		if(1 === (int) $field->runtimeCodeMode && $field->runtimeCustomPHPCode) {
 			// locally scope $pages to eval()
 			$pages = $this->wire('pages');
 
