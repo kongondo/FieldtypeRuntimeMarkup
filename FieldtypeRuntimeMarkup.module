@@ -37,7 +37,7 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		return array(
 			'title' => 'RuntimeMarkup',
 			'author' => 'Francis Otieno (Kongondo)',
-			'version' => 003,
+			'version' => 004,
 			'href' => 'https://processwire.com/talk/topic/10804-module-runtimemarkup-fieldtype-inputfield/',
 			'summary' => 'Allows rendering of custom markup within page editor and frontend via custom PHP snippet set in the field.',			
 			);
@@ -76,11 +76,16 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		$inputfield->set('renderPHPFileMode', $field->renderPHPFileMode);
 		$inputfield->set('renderPHPFile', $field->renderPHPFile);
 		// JS file
-		$inputfield->set('renderJSFileMode', $field->renderJSFileMode);
-		$inputfield->set('renderJSFile', $field->renderJSFile);
+		$inputfield->set('addJSFileMode', $field->addJSFileMode);		
+		$inputfield->set('addJSFile', $field->addJSFile);
+		$inputfield->set('addJSFileSuppressErrors', $field->addJSFileSuppressErrors);
 		// CSS file
-		$inputfield->set('renderCSSFileMode', $field->renderCSSFileMode);
-		$inputfield->set('renderCSSFile', $field->renderCSSFile);
+		$inputfield->set('addCSSFileMode', $field->addCSSFileMode);		
+		$inputfield->set('addCSSFile', $field->addCSSFile);
+		$inputfield->set('addCSSFileSuppressErrors', $field->addCSSFileSuppressErrors);
+
+		// this module's URL
+		$inputfield->set('moduleURL', $this->name);
 
 		return $inputfield;
 	}
@@ -94,7 +99,7 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		
 		$inputfields = parent::___getConfigInputfields($field);
 
-		$modules = $this->wire('modules');
+		$modules = $this->wire('modules');		
 
 		// radios: select runtime code mode [custom php vs render file]
 		$f = $modules->get('InputfieldRadios');
@@ -114,6 +119,10 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 
 		## - PHP - ##
 
+		$fs = $modules->get("InputfieldFieldset");// @note: we wrap these settings in a fieldset
+		$fs->label = $this->_('PHP');
+		#$fs->collapsed = 1;// always collapsed
+
 		// textarea: custom PHP code
 		$f = $modules->get('InputfieldTextarea'); 
 		$f->attr('name', 'runtimeCustomPHPCode');
@@ -124,7 +133,8 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		$f->showIf = 'runtimeCodeMode=1';
 		$f->requiredIf = 'runtimeCodeMode=1';
 
-		$inputfields->append($f);
+		#$inputfields->append($f);
+		$fs->add($f);
 
 		// radios: default file path for wireRenderFile().
 		$f = $modules->get('InputfieldRadios');
@@ -138,11 +148,12 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		$radioOptions = array (
 						 1 => __('/site/templates/'),
 						 2 => __('/site/modules/'),
+						 3 => __('/site/modules/') . $this->name . '/',
 	 	);
 
 		$f->addOptions($radioOptions);
 
-		$inputfields->append($f);
+		$fs->add($f);
 
 		// radios: render PHP file with same name as this field or custom named
 		$f = $modules->get('InputfieldRadios');
@@ -161,7 +172,7 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 
 		$f->addOptions($radioOptions);
 
-		$inputfields->append($f);
+		$fs->add($f);
 
 		// text: name of php file to render 
 		$f = $modules->get('InputfieldText');
@@ -173,14 +184,19 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		$f->showIf = 'runtimeCodeMode=2, renderPHPFileMode=2';
 		$f->requiredIf = 'renderPHPFileMode=2';
 
-		$inputfields->append($f);
+		$fs->add($f);
+		$inputfields->add($fs);
 
 		## - JavaScript - ##
 
-		// radios: render JavaScript file with same name as this field or custom named
+		$fs = $modules->get("InputfieldFieldset");// @note: we wrap these settings in a fieldset
+		$fs->label = $this->_('JavaScript');
+		$fs->collapsed = 1;// always collapsed
+
+		// radios: add JavaScript file with same name as this field or custom named
 		$f = $modules->get('InputfieldRadios');
-		$f->attr('name', 'renderJSFileMode');
-		$f->attr('value', $field->renderJSFileMode ? $field->renderJSFileMode : 1);
+		$f->attr('name', 'addJSFileMode');
+		$f->attr('value', $field->addJSFileMode ? $field->addJSFileMode : 1);
 		$f->label =  $this->_('Add JavaScript File Mode');
 		$f->description = $this->_('Specify name of JavaScript file to add.');
 		$notes = $this->_("If you select option 2, the JavaScript file must have an identical name to this field. A '.js' extension is assumed hence does no need to be specified. If the file is named differently or you want to add several files, use option 3 instead.");
@@ -196,27 +212,51 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 
 		$f->addOptions($radioOptions);
 
-		$inputfields->append($f);
+		$fs->add($f);
 
 		// text: name of JavaScript file to render 
 		$f = $modules->get('InputfieldText');
-		$f->attr('name', 'renderJSFile');
-		$f->attr('value', $field->renderJSFile);
+		$f->attr('name', 'addJSFile');
+		$f->attr('value', $field->addJSFile);
 		$f->label = $this->_('Add JavaScript File(s)');
 		$f->description = $this->_('Enter comma-separated names and/or paths of JavaScript files to add.');
 		$f->notes = $this->_('The JavaScript files must reside somewhere in the Root Path selected above. If a file is in a sub-folder, enter the relative path. For example: **scripts/my-file,includes/js/my-file.js,my-file2**.');
-		#$f->showIf = 'runtimeCodeMode=2, renderJSFileMode=3';
-		$f->showIf = 'renderJSFileMode=3';
-		$f->requiredIf = 'renderJSFileMode=3';
+		#$f->showIf = 'runtimeCodeMode=2, addJSFileMode=3';
+		$f->showIf = 'addJSFileMode=3';
+		$f->requiredIf = 'addJSFileMode=3';
 
-		$inputfields->append($f);
+		$fs->add($f);
+
+		// radios: suppress errors if added JS files are not found
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'addJSFileSuppressErrors');
+		$f->attr('value', $field->addJSFileSuppressErrors ? $field->addJSFileSuppressErrors : 2);
+		$f->label =  $this->_('Suppress Missing JavaScript Files Errors');
+		$f->description = $this->_('Only specify if you do not want to see errors.');
+		$notes = $this->_('Specify if you do not want to see missing JavaScript files errors when editing a page with this field. This is usually not recommended. However, it is a good option if you intend to add those files later.');
+		$f->notes = $notes;
+		$f->showIf = 'addJSFileMode!=1';
+		$f->requiredIf = 'addJSFileMode!=1';
+		$radioOptions = array (
+						 1 => __('Yes'),
+						 2 => __('No'),
+	 	);
+
+		$f->addOptions($radioOptions);
+
+		$fs->add($f);
+		$inputfields->add($fs);
 
 		## - CSS - ##
 
-		// radios: render JavaScript file with same name as this field or custom named
+		$fs = $modules->get("InputfieldFieldset");// @note: we wrap these settings in a fieldset
+		$fs->label = $this->_('CSS');
+		$fs->collapsed = 1;// always collapsed
+
+		// radios: add CSS file with same name as this field or custom named
 		$f = $modules->get('InputfieldRadios');
-		$f->attr('name', 'renderCSSFileMode');
-		$f->attr('value', $field->renderCSSFileMode ? $field->renderCSSFileMode : 1);
+		$f->attr('name', 'addCSSFileMode');
+		$f->attr('value', $field->addCSSFileMode ? $field->addCSSFileMode : 1);
 		$f->label =  $this->_('Add CSS File Mode');
 		$f->description = $this->_('Specify name of CSS file to add.');
 		$notes = $this->_("If you select option 2, the CSS file must have an identical name to this field. A '.css' extension is assumed hence does no need to be specified. If the file is named differently or you want to add several files, use option 3 instead.");
@@ -231,20 +271,40 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 
 		$f->addOptions($radioOptions);
 
-		$inputfields->append($f);
+		$fs->add($f);
 
 		// text: name of JavaScript file to render 
 		$f = $modules->get('InputfieldText');
-		$f->attr('name', 'renderCSSFile');
-		$f->attr('value', $field->renderCSSFile);
+		$f->attr('name', 'addCSSFile');
+		$f->attr('value', $field->addCSSFile);
 		$f->label = $this->_('Add CSS File(s)');
 		$f->description = $this->_('Enter comma-separated names and/or paths of CSS files to add.');
 		$f->notes = $this->_('The CSS files must reside somewhere in the Root Path selected above. If a file is in a sub-folder, enter the relative path. For example: **styles/my-file,includes/css/my-file.css,my-file2**.');
-		#$f->showIf = 'runtimeCodeMode=2, renderCSSFileMode=3';
-		$f->showIf = 'renderCSSFileMode=3';
-		$f->requiredIf = 'renderCSSFileMode=3';
+		#$f->showIf = 'runtimeCodeMode=2, addCSSFileMode=3';
+		$f->showIf = 'addCSSFileMode=3';
+		$f->requiredIf = 'addCSSFileMode=3';
 
-		$inputfields->append($f);
+		$fs->add($f);
+
+		// radios: suppress errors if added CSS files are not found
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'addCSSFileSuppressErrors');
+		$f->attr('value', $field->addCSSFileSuppressErrors ? $field->addCSSFileSuppressErrors : 2);
+		$f->label =  $this->_('Suppress Missing CSS Files Errors');
+		$f->description = $this->_('Only specify if you do not want to see errors.');
+		$notes = $this->_('Specify if you do not want to see missing CSS files errors when editing a page with this field. This is usually not recommended. However, it is a good option if you intend to add those files later.');
+		$f->notes = $notes;
+		$f->showIf = 'addCSSFileMode!=1';
+		$f->requiredIf = 'addCSSFileMode!=1';
+		$radioOptions = array (
+						 1 => __('Yes'),
+						 2 => __('No'),
+	 	);
+
+		$f->addOptions($radioOptions);
+
+		$fs->add($f);
+		$inputfields->add($fs);
 		
 		return $inputfields; 
 	}

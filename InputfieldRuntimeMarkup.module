@@ -30,7 +30,7 @@ class InputfieldRuntimeMarkup extends Inputfield {
 		return array(
 			'title' => 'RuntimeMarkup',
 			'author' => 'Francis Otieno (Kongondo)',
-			'version' => 003,
+			'version' => 004,
 			'href' => 'https://processwire.com/talk/topic/10804-module-runtimemarkup-fieldtype-inputfield/',
 			'summary' => 'Allows rendering of custom markup within page editor via custom PHP snippet set in the field.',
 			'requires' => 'FieldtypeRuntimeMarkup', 
@@ -58,9 +58,9 @@ class InputfieldRuntimeMarkup extends Inputfield {
 		if(!$this->runtimeCodeMode) return;
 		
 		// add specified css file to $config->styles()
-		if(in_array((int)$this->renderCSSFileMode, array(2,3))) $this->runtimeScriptStyleFiles('CSS');
+		if(in_array((int)$this->addCSSFileMode, array(2,3))) $this->runtimeScriptStyleFiles('CSS');
 		// add specified js file to $config->scripts()
-		if(in_array((int)$this->renderJSFileMode, array(2,3))) $this->runtimeScriptStyleFiles('JavaScript');
+		if(in_array((int)$this->addJSFileMode, array(2,3))) $this->runtimeScriptStyleFiles('JavaScript');
 		
 		$out = $this->renderRuntimeCode();
 	
@@ -150,9 +150,8 @@ class InputfieldRuntimeMarkup extends Inputfield {
 
 		// @note: we do not want to throw exceptions. We want a a nice error displayed on rendered page
 		$options['throwExceptions'] = false;
-		// @note: if /site/modules/ specifed as root, we specify that in options
-		// Otherwise, wireRenderFile() defaults to /site/templates/
-		if(2 === (int) $this->defaultPath) $options['defaultPath'] = $paths->siteModules;
+		// @note: wireRenderFile() defaults to /site/templates/
+		$options['defaultPath'] = $this->getDefaultPath();// @note: getting PATH
 
 		// pass the page being edited and $pages as variables to wireRenderFile
 		// this enables use of $page as the page being edited
@@ -187,24 +186,23 @@ class InputfieldRuntimeMarkup extends Inputfield {
 	 * @param String $fileType Whether to add CSS or JS file.
 	 *
 	 */
-	private function runtimeScriptStyleFiles($fileType) {
+	private function runtimeScriptStyleFiles($fileType) {		
 		
-		$urls = $this->wire('config')->urls;
 		$error = '';
 
 		// css
 		if($fileType == 'CSS') {
 			$configS = $this->wire('config')->styles;
-			$filenames = $this->renderCSSFile;
-			$mode = (int) $this->renderCSSFileMode;
+			$filenames = $this->addCSSFile;
+			$mode = (int) $this->addCSSFileMode;
 			$ext = '.css';			
 		}
 
 		// js
 		elseif($fileType == 'JavaScript') {
 			$configS = $this->wire('config')->scripts;
-			$filenames = $this->renderJSFile;
-			$mode = (int) $this->renderJSFileMode;
+			$filenames = $this->addJSFile;
+			$mode = (int) $this->addJSFileMode;
 			$ext = '.js';
 		}
 
@@ -216,11 +214,10 @@ class InputfieldRuntimeMarkup extends Inputfield {
 			$error = sprintf(__('A %s file name needs to be specifed.'), $fileType);
 			$this->throwError($error);
 			return false;
-		}		
-			
-		// @note: if /site/modules/ specifed as root, otherwise, we default to /site/templates/
-		$fileRoot = 2 === (int) $this->defaultPath ?  $urls->siteModules : $urls->templates;
-				
+		}			
+
+		$defaultPath = $this->getDefaultPath(2);// @note: getting URL
+
 		// $filenames is a csv string: convert to array
 		$filenames = explode(',', str_replace(' ', '', $filenames));
 
@@ -249,10 +246,13 @@ class InputfieldRuntimeMarkup extends Inputfield {
 				continue;
 			}
 			// good to go
-			else $configS->add($fileRoot . $filename);
+			else $configS->add($defaultPath . $filename);
 		}
 
-		if($error) $this->throwError($error);
+		if($error) {
+			if($ext == '.js' && 2 === (int) $this->addJSFileSuppressErrors) $this->throwError($error);	
+			elseif($ext == '.css' && 2 === (int) $this->addCSSFileSuppressErrors) $this->throwError($error);
+		}
 
 	}
 
@@ -267,9 +267,7 @@ class InputfieldRuntimeMarkup extends Inputfield {
 	 */
 	private function validateRuntimeJSCSSFile($filename) {
 		$valid = false;
-		$paths = $this->wire('config')->paths;
-		$rootPath = 2 === (int) $this->defaultPath ? $paths->siteModules : $paths->templates;
-		if (is_file($rootPath . $filename)) $valid = true;
+		if (is_file($this->getDefaultPath() . $filename)) $valid = true;// @note: getting path
 		return $valid;
 	}
 
@@ -322,7 +320,29 @@ class InputfieldRuntimeMarkup extends Inputfield {
 		$valid = true;
 		if(strpos($filename, '..')) $valid = false;
 		return $valid;
-	}	
+	}
+
+	/**
+	 *
+	 * Return the formatted default/root path/url for files as per field's settings.
+	 *
+	 * @access private
+	 * @param Int $mode Whether to return path vs URL.
+	 * @return String $defaultPath Default path for rendered/added fiels
+	 *
+	 */
+	private function getDefaultPath($mode=1) {
+
+		$config = $this->wire('config');
+
+		$r = $mode == 2 ? $config->urls : $config->paths;
+		if(2 === (int) $this->defaultPath) $defaultPath =  $r->siteModules;// /site/modules/
+		elseif(3 === (int) $this->defaultPath) $defaultPath =  $r->siteModules . $this->moduleURL . '/';// /site/modules/thisModule/
+		else $defaultPath =  $r->templates;// /site/templates/
+		
+		return $defaultPath;
+
+	}
 
 	/**
 	 *

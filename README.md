@@ -155,6 +155,9 @@ echo $pages->get('/about-us/')->runtime_markup;
 
 ## Changelog
 
+### Version 0.0.4
+Enhancements to support for rendering PHP, CSS and JavaScript files.
+
 ### Version 0.0.3
 Added support for rendering PHP, CSS and JavaScript files.
 
