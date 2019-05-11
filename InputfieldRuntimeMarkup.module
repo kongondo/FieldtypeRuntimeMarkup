@@ -1,4 +1,4 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
 * InputfieldRuntimeMarkup for ProcessWire.
@@ -11,14 +11,13 @@
 * @author Kongondo <kongondo@gmail.com>
 * @sponsored by Andrey Valiev
 *
-* Lincensed under GNU/GPL v2.
-*
 * https://github.com/kongondo/FieldtypeRuntimeMarkup
 * Created August 2015
-* 
-* ProcessWire 2.x
-* Copyright (C) 2011 by Ryan Cramer
-* Licensed under GNU/GPL v2, see LICENSE.TXT
+*
+* ProcessWire 3.x
+* Copyright (C) 2016 by Ryan Cramer
+*
+* Licensed under MIT, see LICENSE.TXT
 *
 * http://www.processwire.com
 *
@@ -30,37 +29,334 @@ class InputfieldRuntimeMarkup extends Inputfield {
 		return array(
 			'title' => 'RuntimeMarkup',
 			'author' => 'Francis Otieno (Kongondo)',
-			'version' => 002,
+			'version' => '0.0.5',
 			'href' => 'https://processwire.com/talk/topic/10804-module-runtimemarkup-fieldtype-inputfield/',
 			'summary' => 'Allows rendering of custom markup within page editor via custom PHP snippet set in the field.',
-			'requires' => 'FieldtypeRuntimeMarkup', 
+			'requires' => 'FieldtypeRuntimeMarkup',
 			);
 	}
 
 	/**
+	 *
+	 * Set the page being edited to a property.
+	 *
+	 * @note: set in FieldtypeRuntimeMarkup.
+	 *
+	 */
+	public function setPage(Page $page) {
+		$this->pageEdit = $page;
+	}
+
+	/**
+	 *
 	 * Render the entire markup returned from FieldtypeRuntimeMarkup
 	 *
 	 */
 	public function ___render() {
 
-		//if code field is empty return early
-		if(!$this->runtimeFields) return;
+		if(!$this->runtimeCodeMode) return;
 
-		//so that $page and $pages are locally scoped to the eval
-		$process = $this->wire('process'); 
-		if($process && $process->className() == 'ProcessPageEdit') $page = $process->getPage();
+		// add specified css file to $config->styles()
+		if(in_array((int)$this->addCSSFileMode, array(2,3))) $this->runtimeScriptStyleFiles('CSS');
+		// add specified js file to $config->scripts()
+		if(in_array((int)$this->addJSFileMode, array(2,3))) $this->runtimeScriptStyleFiles('JavaScript');
 
-		$pages = $this->wire('pages');
+		$out = $this->renderRuntimeCode();
 
-		$str = eval($this->runtimeFields);
-
-		//since we are dealing with custom PHP code but also want to make sure that only markup is returned
-		//if eval() returns anything other than a string or an integer, we throw an error (e.g. if an object or array is returned)
-		if (is_string($str) || is_int($str)) return $str;
-		else return $this->error($this->_('Only strings and integers should be returned by your custom code! Check if your code is valid.'));
+		return $out;
 
 	}
-	
+
+	/**
+	 * Run PHP code to render string/int for render() markup.
+	 *
+	 */
+	private function renderRuntimeCode() {
+
+		$codeMode = $this->runtimeCodeMode;
+		$out = '';
+
+		// expecting to return eval of custom pasted PHP code
+		if(1 === (int) $codeMode) {// @note: just being extra sure with check
+
+			// evaluate runtime custom PHP code
+			$result = $this->runtimeCustomPHPCode();
+			// since we are dealing with custom PHP code but also want to make sure that only markup is returned
+			$valid = $this->validateRuntimeCustomPHPCode($result);
+			// if eval() returned anything other than a string or an integer,
+			// we throw an error (e.g. if an object or array is returned)
+			if($valid) $out = $result;
+			else {
+				$error = $this->_('Only strings and integers should be returned by your custom code! Check if your code is valid.');
+				return $this->throwError($error);
+			}
+		}
+		// expecting to wireFileRender() files
+		// @note: just being extra sure with check
+		elseif(2 === (int) $codeMode) $out = $this->runtimePHPFile((int)$this->renderPHPFileMode);
+
+		return $out;
+
+	}
+
+	/**
+	 *
+	 * Eval custom PHP code for renderRuntimeCode().
+	 *
+	 * @access private
+	 * @return PHP eval() result.
+	 *
+	 */
+	private function runtimeCustomPHPCode() {
+		// so that $page and $pages are locally scoped to the eval()
+		$page = $this->pageEdit;
+		$pages = $this->wire('pages');
+		$input = $this->wire('input');
+		// if using Ace Extended strip out <?php from string to be eval'ed
+		// thanks @adrian
+		// @note: we always strip the php tag, just in case dev decides not to use Ace anymore but forgets to remove the tag
+		$evalString = str_replace('<?php','',$this->runtimeCustomPHPCode);
+		return eval($evalString);
+	}
+
+	/**
+	 *
+	 * Check if runtime custom PHP returned valid values.
+	 * Valid values are either strings or integers.
+	 *
+	 * @access private
+	 * @param Int|String $result Result returned by eval().
+	 * @return Bool $valid Whether $result if valid.
+	 *
+	 */
+	private function validateRuntimeCustomPHPCode($result) {
+		$valid = false;
+		if (is_string($result) || is_int($result)) $valid = true;
+		return $valid;
+	}
+
+	/**
+	 *
+	 * Render custom PHP file with markup for render().
+	 *
+	 * Uses $files->render().
+	 * $files->render() will generate error if no file found.
+	 *
+	 * @access private
+	 * @param Int $mode Whether file name identical to field or custom name
+	 * @return String $out content of rendered file.
+	 *
+	 */
+	private function runtimePHPFile($mode) {
+
+		$out = '';
+		$paths = $this->wire('config')->paths;
+		$files = $this->wire('files');
+
+		// @note: we do not want to throw exceptions. We want a a nice error displayed on rendered page
+		$options['throwExceptions'] = false;
+		// @note: $files->render() defaults to /site/templates/
+		$options['defaultPath'] = $this->getDefaultPath();// @note: getting PATH
+
+		// pass the page being edited and $pages as variables to $files->render()
+		// this enables use of $page as the page being edited
+		// otherwise, $page will be the Admin 'Edit' page
+		$vars = array('page' => $this->pageEdit, 'pages' => $this->wire('pages'), 'input' => $this->wire('input'));
+
+		// render file with same name as this field
+		// @note: here, sub-folders cannot be specified
+		if(1 == $mode) {
+			$filename = $this->fieldName;
+			$out = $files->render($filename, $vars, $options);
+		}
+
+		// render PHP file(s) with different name and/or more than 1
+		else {
+			// $filenames is a csv string: convert to array
+			$filenames = explode(',', str_replace(' ', '', $this->renderPHPFile));
+			foreach ($filenames as $filename) $out .= $files->render($filename, $vars, $options);
+		}
+
+		return $out;
+
+	}
+
+	/**
+	 *
+	 * Add custom CSS or JS file to the page being edited.
+	 *
+	 * Uses $config->styles() or $config->scripts().
+	 *
+	 * @access private
+	 * @param String $fileType Whether to add CSS or JS file.
+	 *
+	 */
+	private function runtimeScriptStyleFiles($fileType) {
+
+		$error = '';
+
+		// css
+		if($fileType == 'CSS') {
+			$configS = $this->wire('config')->styles;
+			$filenames = $this->addCSSFile;
+			$mode = (int) $this->addCSSFileMode;
+			$ext = '.css';
+		}
+
+		// js
+		elseif($fileType == 'JavaScript') {
+			$configS = $this->wire('config')->scripts;
+			$filenames = $this->addJSFile;
+			$mode = (int) $this->addJSFileMode;
+			$ext = '.js';
+		}
+
+		// get file with same name as this field vs. custom name
+		$filenames = 2 == $mode ? $this->fieldName : $filenames;
+
+		// if no filename, show error
+		if(!strlen(trim($filenames, ', '))) {
+			$error = sprintf(__('A %s file name needs to be specifed.'), $fileType);
+			$this->throwError($error);
+			return false;
+		}
+
+		$defaultPath = $this->getDefaultPath(2);// @note: getting URL
+
+		// $filenames is a csv string: convert to array
+		$filenames = explode(',', str_replace(' ', '', $filenames));
+
+		foreach ($filenames as $filename) {
+
+			if(!$filename) continue;
+
+			## validation ##
+
+			// make path relative to root if filename is not an absolute path
+			if(!$this->checkDotDot($filename)) {
+				$error .= $this->_('Filename may not have ".."') . ': ' . $filename  . "\n";
+				continue;
+			}
+
+			// convert directory separator if necessary
+			$filename = $this->convertDirectorySeparator($filename);
+
+			// add .css/.js extension if filename doesn't already have an extension
+			$filename = $this->addExtension($filename, $ext);
+
+			// show error if no file found
+			$valid = $this->validateRuntimeJSCSSFile($filename);
+			if(!$valid) {
+				$error .= $this->_('File not found') . ': ' . $filename  . "\n";
+				continue;
+			}
+			// good to go
+			else $configS->add($defaultPath . $filename);
+		}
+
+		if($error) {
+			if($ext == '.js' && 2 === (int) $this->addJSFileSuppressErrors) $this->throwError($error);
+			elseif($ext == '.css' && 2 === (int) $this->addCSSFileSuppressErrors) $this->throwError($error);
+		}
+
+	}
+
+	/**
+	 *
+	 * Check if specified file exists.
+	 *
+	 * @access private
+	 * @param String $filename Path|Filename to locate.
+	 * @return Bool $valid Whether $filename found or not.
+	 *
+	 */
+	private function validateRuntimeJSCSSFile($filename) {
+		$valid = false;
+		if (is_file($this->getDefaultPath() . $filename)) $valid = true;// @note: getting path
+		return $valid;
+	}
+
+	/**
+	 *
+	 * Convert directory separators to linux style (/).
+	 *
+	 * @credits: @ryan (adapted from $files->render()).
+	 *
+	 * @access private
+	 * @param String $filename Path|Filename to convert.
+	 * @return String $filename Path|Filename with converted directory separators.
+	 *
+	 */
+	private function convertDirectorySeparator($filename) {
+		if(DIRECTORY_SEPARATOR != '/') $filename = str_replace(DIRECTORY_SEPARATOR, '/', $filename);
+		return $filename;
+	}
+
+	/**
+	 *
+	 * Add CSS/JS extension to file if one does not exist.
+	 *
+	 * @credits: @ryan (adapted from $files->render()).
+	 *
+	 * @access private
+	 * @param String $filename Path|Filename to add extension to.
+	 * @param String $ext Extension to add, .css or .js.
+	 * @return String $filename Path|Filename with extension added.
+	 *
+	 */
+	private function addExtension($filename, $ext) {
+		if(!strrpos(basename($filename), '.')) $filename .= $ext;
+		return $filename;
+	}
+
+	/**
+	 *
+	 * Check if file has double dots.
+	 *
+	 * We don't allow this.
+	 * @credits: @ryan (adapted from $files->render()).
+	 *
+	 * @access private
+	 * @param String $filename Path|Filename to validate.
+	 * @return Bool $valid Whether $filename valid or not.
+	 *
+	 */
+	private function checkDotDot($filename) {
+		$valid = true;
+		if(strpos($filename, '..')) $valid = false;
+		return $valid;
+	}
+
+	/**
+	 *
+	 * Return the formatted default/root path/url for files as per field's settings.
+	 *
+	 * @access private
+	 * @param Int $mode Whether to return path vs URL.
+	 * @return String $defaultPath Default path for rendered/added fiels
+	 *
+	 */
+	private function getDefaultPath($mode=1) {
+		$config = $this->wire('config');
+		$r = $mode == 2 ? $config->urls : $config->paths;
+		if(2 === (int) $this->defaultPath) $defaultPath =  $r->siteModules;// /site/modules/
+		else $defaultPath =  $r->templates;// /site/templates/
+		return $defaultPath;
+	}
+
+	/**
+	 *
+	 * Throw error if runtime PHP Code did not evaluate as string or integer.
+	 *
+	 * @access private
+	 * @param String $error Error message to return;
+	 * @return Error $error ProcessWire error.
+	 *
+	 */
+	private function throwError($error) {
+		return $this->error($error, Notice::allowMarkup);
+	}
+
 	/**
 	 * Process input for the values sent from this field
 	 *
@@ -75,4 +371,3 @@ class InputfieldRuntimeMarkup extends Inputfield {
 
 
 }
-

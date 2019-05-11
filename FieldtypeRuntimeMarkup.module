@@ -1,4 +1,4 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * FieldtypeRuntimeMarkup for ProcessWire.
@@ -7,25 +7,25 @@
  * to be output in the page editor and frontend (via API).
  *
  * Note that this is a runtime-only field and can't be queried via selectors since its value
- * only exists at runtime. 
+ * only exists at runtime.
  *
- * This fieldtype extends FieldtypeText so that it can reuse the TextFormatters 
- * functionality already implemented there. 
- * 
+ * This fieldtype extends FieldtypeText so that it can reuse the TextFormatters
+ * functionality already implemented there.
+ *
  * @author Kongondo <kongondo@gmail.com>
  * @sponsored by Andrey Valiev
- * 
- * Includes some code from from Ryan Cramer's FieldtypeConcat. 
  *
- * Lincensed under GNU/GPL v2.
+ * Includes some code from from Ryan Cramer's FieldtypeConcat.
+ *
  *
  * https://github.com/kongondo/FieldtypeRuntimeMarkup
  * Created August 2015
  *
- * ProcessWire 2.x 
- * Copyright (C) 2015 by Ryan Cramer 
- * Licensed under GNU/GPL v2, see LICENSE.TXT
- * 
+ * ProcessWire 3.x
+ * Copyright (C) 2016 by Ryan Cramer
+ *
+ * Licensed under MIT, see LICENSE.TXT
+ *
  * http://processwire.com
  *
  *
@@ -37,48 +37,307 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		return array(
 			'title' => 'RuntimeMarkup',
 			'author' => 'Francis Otieno (Kongondo)',
-			'version' => 002,
+			'version' => '0.0.5',
 			'href' => 'https://processwire.com/talk/topic/10804-module-runtimemarkup-fieldtype-inputfield/',
-			'summary' => 'Allows rendering of custom markup within page editor and frontend via custom PHP snippet set in the field.',			
+			'summary' => 'Allows rendering of custom markup within page editor and frontend via custom PHP snippet set in the field.',
 			);
 	}
 
 	public function init() {
-		$this->set('runtimeFields', '');
+		$this->set('runtimeCodeMode', '');// @todo...needed?
 	}
 
 	/**
 	 * Return the required Inputfield used to populate a field of this type
 	 *
 	 */
-	public function getInputfield(Page $page, Field $field) {		
+	public function getInputfield(Page $page, Field $field) {
 
-		$inputfield = $this->modules->get("InputfieldRuntimeMarkup");
+		$inputfield = $this->wire('modules')->get('InputfieldRuntimeMarkup');
 
-		$inputfield->set('runtimeFields', $field->runtimeFields);
+		// store the page using this field (page being edited in our case) for use in the inputfield
+		$inputfield->setPage($page);//  @note: this is a method in InputfieldRuntimeMarkup
+
+		// store this field's name for use in InputfieldRuntimeMarkup
+		$inputfield->set('fieldName', $field->name);
+
+		## direct code vs render file mode
+		$inputfield->set('runtimeCodeMode', $field->runtimeCodeMode);
+
+		## PHP code mode ##
+		$inputfield->set('runtimeCustomPHPCode', $field->runtimeCustomPHPCode);
+		$inputfield->set('useAceExtended', $field->useAceExtended);
+
+		## render file mode ##
+
+		// default path
+		$inputfield->set('defaultPath', $field->defaultPath);
+
+		// PHP file
+		$inputfield->set('renderPHPFileMode', $field->renderPHPFileMode);
+		$inputfield->set('renderPHPFile', $field->renderPHPFile);
+		// JS file
+		$inputfield->set('addJSFileMode', $field->addJSFileMode);
+		$inputfield->set('addJSFile', $field->addJSFile);
+		$inputfield->set('addJSFileSuppressErrors', $field->addJSFileSuppressErrors);
+		// CSS file
+		$inputfield->set('addCSSFileMode', $field->addCSSFileMode);
+		$inputfield->set('addCSSFile', $field->addCSSFile);
+		$inputfield->set('addCSSFileSuppressErrors', $field->addCSSFileSuppressErrors);
+
+		// this module's URL
+		$inputfield->set('moduleURL', $this->name);
 
 		return $inputfield;
 	}
 
 	/**
-	 * Return the field required to configure an instance of FieldtypeTextarea
-	 * This will hold custom PHP snippet
-	 * The snippet should return a string/integer (markup) only
+	 *
+	 * Return this field's settings as displayed in Details Tab.
+	 *
 	 */
 	public function ___getConfigInputfields(Field $field) {
-		
+
 		$inputfields = parent::___getConfigInputfields($field);
 
-		$f = $this->modules->get('InputfieldTextarea'); 
-		$f->attr('name', 'runtimeFields');
-		$f->attr('value', $field->runtimeFields); 
-		$f->label = $this->_('Custom PHP code to generate markup');
-		$f->description = $this->_('Enter valid PHP code to return custom markup. This statement has access to the $page and $pages API variables, where $page refers to the page being edited. The snippet should only return strings and integers. Anything else will result in an error');
-		$f->notes = $this->_('Example: return $page->parent->parent->title;');
+		$modules = $this->wire('modules');
+
+		// radios: select runtime code mode [custom php vs render file]
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'runtimeCodeMode');
+		$f->attr('value', $field->runtimeCodeMode ? $field->runtimeCodeMode : 1);
+		$f->label =  $this->_('PHP Runtime Code Mode');
+		$f->description = $this->_('Select how PHP runtime code will be specified.');
+		$f->notes = $this->_('It is recommended that you choose option 2 to render PHP files. That offers better flexibility and control.');
+		$radioOptions = array (
+			1 => __('Paste PHP code'),
+			2 => __('Render PHP file(s) (recommended)'),
+	 	);
+
+		$f->addOptions($radioOptions);
 
 		$inputfields->append($f);
-		
-		return $inputfields; 
+
+		## - PHP - ##
+
+		$fs = $modules->get("InputfieldFieldset");// @note: we wrap these settings in a fieldset
+		$fs->label = $this->_('PHP');
+		#$fs->collapsed = 1;// always collapsed
+
+		// checkbox: use Ace Extended (if installed) for custom PHP code highlighting
+		// if InputfieldAceExtended is install, give option to use it
+		// thanks @adrian
+		if($modules->isInstalled('InputfieldAceExtended')) {
+			//checkbox for use Ace Extended
+			$f = $this->modules->get("InputfieldCheckbox");
+			$f->attr('name', 'useAceExtended');
+			$f->attr('checked', $field->useAceExtended ? 'checked' : '');
+			$f->label = $this->_('PHP Code Highlighting');
+			// $f->label2 = $this->_('Check to use InputfieldAceExtended for code highlighting');
+			$f->description = $this->_('Check the box if you want to use Ace Extended for PHP code highlighting.');
+			$f->notes = $this->_("You will need to prepend your PHP code with '<?php' to force code highlighting. Before eval, the tag will be removed.");
+			$f->showIf = 'runtimeCodeMode=1';
+			$f->requiredIf = 'runtimeCodeMode=1';
+
+			$fs->append($f);
+		}
+
+		// textarea: custom PHP code
+		// $f = $modules->get('InputfieldTextarea');
+		// if InputfieldAceExtended is installed, use it instead of a plain textarea
+		$f =  $field->useAceExtended ? $modules->get('InputfieldAceExtended') : $modules->get('InputfieldTextarea');
+		$f->attr('name', 'runtimeCustomPHPCode');
+		$f->attr('value', $field->runtimeCustomPHPCode);
+		$f->label = $this->_('Custom PHP Code to Generate Markup');
+		$f->description = $this->_('Enter valid PHP code to return custom markup. This statement has access to the $page and $pages API variables, where $page refers to the page being edited. The snippet should only return strings and integers. Anything else will result in an error.');
+		$f->notes = $this->_('Example: return $page->parent->parent->title;');
+		$f->rows = $field->codeRows ? $field->codeRows: 7;
+		$f->showIf = 'runtimeCodeMode=1';
+		$f->requiredIf = 'runtimeCodeMode=1';
+		$fs->add($f);
+
+		// number of textarea rows for PHP code
+		$f = $modules->get('InputfieldInteger');
+		$f->attr('name', 'codeRows');
+		$f->attr('value', (int) $field->codeRows ? (int) $field->codeRows : 7);
+		$f->attr('size', 4);
+		$f->label = $this->_('PHP Code Textarea Rows');
+		$f->description = $this->_('Number of rows for PHP code textarea.');
+		$f->showIf = 'runtimeCodeMode=1';
+		$f->requiredIf = 'runtimeCodeMode=1';
+		$fs->add($f);
+
+		// radios: default file path for $files->render().
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'defaultPath');
+		$f->attr('value', $field->defaultPath ? $field->defaultPath : 1);
+		$f->label =  $this->_('Files Root Path');
+		$f->description = $this->_('Specify root path of files below.');
+		$f->notes = $this->_('Any PHP, JavaScript or CSS files specified in settings below must descend from either of these two root path options. Files in sub-folders are OK as long as those reside in one of the two root paths.');
+		#$f->showIf = 'runtimeCodeMode=2';
+		#$f->requiredIf = 'runtimeCodeMode=2';
+		$radioOptions = array (
+			1 => __('/site/templates/'),
+			2 => __('/site/modules/'),
+	 	);
+
+		$f->addOptions($radioOptions);
+
+		$fs->add($f);
+
+		// radios: render PHP file with same name as this field or custom named
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'renderPHPFileMode');
+		$f->attr('value', $field->renderPHPFileMode ? $field->renderPHPFileMode : 1);
+		$f->label =  $this->_('Render PHP File Mode');
+		$f->description = $this->_('Specify name of PHP file to render.');
+		$notes = $this->_("If you select option 1, the PHP file must have an identical name to this field. A '.php' extension is assumed hence does no need to be specified. If the file is named differently or has a different extension (e.g. my-file.inc) or you want to render several files, use option 2 instead.");
+		$f->notes = $notes;
+		$f->showIf = 'runtimeCodeMode=2';
+		$f->requiredIf = 'runtimeCodeMode=2';
+		$radioOptions = array (
+			1 => __('PHP file has identical name to this field'),
+			2 => __('PHP file has different name'),
+	 	);
+
+		$f->addOptions($radioOptions);
+
+		$fs->add($f);
+
+		// text: name of php file to render
+		$f = $modules->get('InputfieldText');
+		$f->attr('name', 'renderPHPFile');
+		$f->attr('value', $field->renderPHPFile);
+		$f->label = $this->_('Render PHP File');
+		$f->description = $this->_('Enter comma-separated names and/or paths of PHP files to render.');
+		$f->notes = $this->_('The PHP files must reside somewhere in the Root Path selected above. If a file is in a sub-folder, enter the relative path. For example: **includes/my-file,inc/tools/my-file.php,my-file2.inc**.');
+		$f->showIf = 'runtimeCodeMode=2, renderPHPFileMode=2';
+		$f->requiredIf = 'renderPHPFileMode=2';
+
+		$fs->add($f);
+
+		$inputfields->add($fs);
+
+		## - JavaScript - ##
+
+		$fs = $modules->get("InputfieldFieldset");// @note: we wrap these settings in a fieldset
+		$fs->label = $this->_('JavaScript');
+		$fs->collapsed = 1;// always collapsed
+
+		// radios: add JavaScript file with same name as this field or custom named
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'addJSFileMode');
+		$f->attr('value', $field->addJSFileMode ? $field->addJSFileMode : 1);
+		$f->label =  $this->_('Add JavaScript File Mode');
+		$f->description = $this->_('Specify name of JavaScript file to add.');
+		$notes = $this->_("If you select option 2, the JavaScript file must have an identical name to this field. A '.js' extension is assumed hence does no need to be specified. If the file is named differently or you want to add several files, use option 3 instead.");
+		$f->notes = $notes;
+		#$f->showIf = 'runtimeCodeMode=2';
+		#$f->requiredIf = 'runtimeCodeMode=2';
+		$radioOptions = array (
+			1 => __("Don't add JavaScript file"),
+			2 => __('JavaScript file has identical name to this field'),
+			3 => __('JavaScript file has different name'),
+	 	);
+
+		$f->addOptions($radioOptions);
+
+		$fs->add($f);
+
+		// text: name of JavaScript file to render
+		$f = $modules->get('InputfieldText');
+		$f->attr('name', 'addJSFile');
+		$f->attr('value', $field->addJSFile);
+		$f->label = $this->_('Add JavaScript File(s)');
+		$f->description = $this->_('Enter comma-separated names and/or paths of JavaScript files to add.');
+		$f->notes = $this->_('The JavaScript files must reside somewhere in the Root Path selected above. If a file is in a sub-folder, enter the relative path. For example: **scripts/my-file,includes/js/my-file.js,my-file2**.');
+		#$f->showIf = 'runtimeCodeMode=2, addJSFileMode=3';
+		$f->showIf = 'addJSFileMode=3';
+		$f->requiredIf = 'addJSFileMode=3';
+
+		$fs->add($f);
+
+		// radios: suppress errors if added JS files are not found
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'addJSFileSuppressErrors');
+		$f->attr('value', $field->addJSFileSuppressErrors ? $field->addJSFileSuppressErrors : 2);
+		$f->label =  $this->_('Suppress Missing JavaScript Files Errors');
+		$f->description = $this->_('Only specify if you do not want to see errors.');
+		$notes = $this->_('Specify if you do not want to see missing JavaScript files errors when editing a page with this field. This is usually not recommended. However, it is a good option if you intend to add those files later.');
+		$f->notes = $notes;
+		$f->showIf = 'addJSFileMode!=1';
+		$f->requiredIf = 'addJSFileMode!=1';
+		$radioOptions = array (
+			1 => __('Yes'),
+			2 => __('No'),
+	 	);
+
+		$f->addOptions($radioOptions);
+
+		$fs->add($f);
+		$inputfields->add($fs);
+
+		## - CSS - ##
+
+		$fs = $modules->get("InputfieldFieldset");// @note: we wrap these settings in a fieldset
+		$fs->label = $this->_('CSS');
+		$fs->collapsed = 1;// always collapsed
+
+		// radios: add CSS file with same name as this field or custom named
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'addCSSFileMode');
+		$f->attr('value', $field->addCSSFileMode ? $field->addCSSFileMode : 1);
+		$f->label =  $this->_('Add CSS File Mode');
+		$f->description = $this->_('Specify name of CSS file to add.');
+		$notes = $this->_("If you select option 2, the CSS file must have an identical name to this field. A '.css' extension is assumed hence does no need to be specified. If the file is named differently or you want to add several files, use option 3 instead.");
+		$f->notes = $notes;
+		#$f->showIf = 'runtimeCodeMode=2';
+		#$f->requiredIf = 'runtimeCodeMode=2';
+		$radioOptions = array (
+			1 => __("Don't add CSS file"),
+			2 => __('CSS file has identical name to this field'),
+			3 => __('CSS file has different name'),
+	 	);
+
+		$f->addOptions($radioOptions);
+
+		$fs->add($f);
+
+		// text: name of JavaScript file to render
+		$f = $modules->get('InputfieldText');
+		$f->attr('name', 'addCSSFile');
+		$f->attr('value', $field->addCSSFile);
+		$f->label = $this->_('Add CSS File(s)');
+		$f->description = $this->_('Enter comma-separated names and/or paths of CSS files to add.');
+		$f->notes = $this->_('The CSS files must reside somewhere in the Root Path selected above. If a file is in a sub-folder, enter the relative path. For example: **styles/my-file,includes/css/my-file.css,my-file2**.');
+		#$f->showIf = 'runtimeCodeMode=2, addCSSFileMode=3';
+		$f->showIf = 'addCSSFileMode=3';
+		$f->requiredIf = 'addCSSFileMode=3';
+
+		$fs->add($f);
+
+		// radios: suppress errors if added CSS files are not found
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'addCSSFileSuppressErrors');
+		$f->attr('value', $field->addCSSFileSuppressErrors ? $field->addCSSFileSuppressErrors : 2);
+		$f->label =  $this->_('Suppress Missing CSS Files Errors');
+		$f->description = $this->_('Only specify if you do not want to see errors.');
+		$notes = $this->_('Specify if you do not want to see missing CSS files errors when editing a page with this field. This is usually not recommended. However, it is a good option if you intend to add those files later.');
+		$f->notes = $notes;
+		$f->showIf = 'addCSSFileMode!=1';
+		$f->requiredIf = 'addCSSFileMode!=1';
+		$radioOptions = array (
+			1 => __('Yes'),
+			2 => __('No'),
+	 	);
+
+		$f->addOptions($radioOptions);
+
+		$fs->add($f);
+		$inputfields->add($fs);
+
+		return $inputfields;
+
 	}
 
 	/**
@@ -88,31 +347,35 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 	 *
 	 */
 	protected function renderMarkup(Page $page, Field $field) {
+		// @note: currently, only runtime PHP code returned here, i.e. no rendering PHP files
+		// this means if using the option to render PHP files, there will be no frontend output
+		// that's OK as this field is not really meant for frontend use
+		if(1 === (int) $field->runtimeCodeMode && $field->runtimeCustomPHPCode) {
+			// locally scope $pages and $input to eval()
+			$pages = $this->wire('pages');
+			//$input = $this->wire('input');// @TODO...OK?
+			// if using Ace Extended strip out <?php from string to be eval'ed
+			// thanks @adrian
+			// @note: we always strip the php tag, just in case dev decides not to use Ace anymore but forgets to remove the tag
+			$evalString = eval(str_replace('<?php','',$field->runtimeCustomPHPCode));
 
-		//if code field is empty return early
-		if(!$field->runtimeFields) return;
+			// since we are dealing with custom PHP code but also want to make sure that only markup is returned
+			// if eval() returns anything other than a string or an integer, we throw an error (e.g. if an object or array is returned)
+			if (is_string($evalString) || is_int($evalString)) return $evalString;
+			// we need to check if we are in admin. Otherwise with an error, in the frontend the name of the the Fieldtype is returned if we echo out the field
+			elseif($this->wire('process')->className() == 'ProcessPageEdit') return $this->error($this->_('Only strings and integers should be returned by your custom code! Check if your code is valid.'));
+		}
 
-		//locally scope $pages to eval()
-		$pages = $this->wire('pages');
-
-		$str = eval($field->runtimeFields);
-
-		//since we are dealing with custom PHP code but also want to make sure that only markup is returned
-		//if eval() returns anything other than a string or an integer, we throw an error (e.g. if an object or array is returned)
-		if (is_string($str) || is_int($str)) return $str;
-		//we need to check if we are in admin. Otherwise with an error, in the frontend the name of the the Fieldtype is returned if we echo out the field
-		elseif($this->wire('process')->className() == 'ProcessPageEdit') return $this->error($this->_('Only strings and integers should be returned by your custom code! Check if your code is valid.'));
-		
 	}
 
 	/**
 	 * Render a markup string of the value
-	 * 
+	 *
 	 * This is important for correctly rendering markup output in listers.
 	 *
 	 * @param Page $page Page that $value comes from
 	 * @param Field $field Field that $value comes from
-	 * @param mixed $value Optionally specify the $page->getFormatted(value), value must be a formatted value. 
+	 * @param mixed $value Optionally specify the $page->getFormatted(value), value must be a formatted value.
 	 * 	If null or not specified (recommended), it will be retrieved automatically.
 	 * @param string $property Optionally specify the property or index to render. If omitted, entire value is rendered.
 	 * @return string|MarkupFieldtype Returns a string or object that can be output as a string, ready for output.
@@ -130,7 +393,7 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 	 */
 
 	public function sanitizeValue(Page $page, Field $field, $value) {
-		return $value; 
+		return $value;
 	}
 
 	public function ___wakeupValue(Page $page, Field $field, $value) {
@@ -138,17 +401,19 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 	}
 
 	public function ___sleepValue(Page $page, Field $field, $value) {
-		return $this->renderMarkup($page, $field);
+		// return $this->renderMarkup($page, $field);
+		return true;// thanks @adrian [prevent any unnecessary re-rendering of the output]
 	}
 
 	public function getLoadQuery(Field $field, DatabaseQuerySelect $query) {
 		// prevent loading from DB
-		return $query; 
+		return $query;
 	}
 
 	public function ___loadPageField(Page $page, Field $field) {
 		// generate value at runtime rather than loading from DB
-		return $this->renderMarkup($page, $field); 
+		// return $this->renderMarkup($page, $field);
+		return true;// thanks @adrian [prevent any unnecessary re-rendering of the output]
 	}
 
 	public function ___savePageField(Page $page, Field $field) {
@@ -158,12 +423,12 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 
 	public function ___deletePageField(Page $page, Field $field) {
 		// deleting of page field not necessary
-		return true; 
+		return true;
 	}
 
 	public function ___deleteField(Field $field) {
 		// deleting of field not necessary
-		return true; 
+		return true;
 	}
 
 	public function getDatabaseSchema(Field $field) {
@@ -173,14 +438,14 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 
 	public function ___createField(Field $field) {
 		// nothing necessary to create the field
-		return true; 
+		return true;
 	}
 
 	public function getMatchQuery($query, $table, $subfield, $operator, $value) {
 		// we don't allow this field to be queried
 		throw new WireException("Field '{$query->field->name}' is runtime and not queryable");
 	}
-	
+
 	public function ___getCompatibleFieldtypes(Field $field) {
 		// no fieldtypes are compatible
 		return new Fieldtypes();
@@ -193,4 +458,3 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 
 
 }
-
