@@ -20,7 +20,7 @@ The field's value is accessible from the ProcessWire API in the frontend like an
 
 1. Copy the files for this module to /site/modules/FieldtypeRuntimeMarkup/ OR if running later versions of ProcessWire, install directly from the Modules screen.
 2. In admin: Modules > Check for new modules. Install Fieldtype > RuntimeMarkup.
-3. Create a new field of type RuntimeMarkup, and name it whatever you want. In our examples, we named it "runtime_markup". 
+3. Create a new field of type RuntimeMarkup, and name it whatever you want. In our examples, we named it "runtime_markup".
 4. Head over to your field's **Details** tab.
 5. Complete the how to specify your PHP code option. **It is recommended to use the Render PHP files option**. Otherwise, enter your custom PHP code in the PHP code textarea.
 6. If rendering PHP files, fill in the settings for rendering PHP files. It is possible to render only 1 PHP file if it has an identical name to your field. **If you wish to render more than one PHP file and/or your file has a different name to your field**, select that option and enter comma-separated names/paths of those PHP files. Do the same for the JavaScript and CSS files sections if you wish to add scripts and style files. Please note that **these JavaScript and CSS files can also specified if you are using the paste PHP code option**.
@@ -59,7 +59,7 @@ echo $out;
 
 ```
 
-Of course, you will want to do something more meaningful. For instance, find pages which have a certain field empty. Loop through the pages create modal links to them. You will then be able to edit those pages in a modal window. In addition, you can target the unordered list using its CSS class in your JavaScript and/or CSS. 
+Of course, you will want to do something more meaningful. For instance, find pages which have a certain field empty. Loop through the pages create modal links to them. You will then be able to edit those pages in a modal window. In addition, you can target the unordered list using its CSS class in your JavaScript and/or CSS.
 
 This is only one example. You can be as complex or imaginative as you want with this Fieldtype!
 
@@ -154,6 +154,15 @@ echo $pages->get('/about-us/')->runtime_markup;
 - The value for this Fieldtype is generated at runtime and thus no data is stored in the database. This means that you cannot directly query a RuntimeMarkup field from **$pages->find()**.
 
 ## Changelog
+
+### Version 0.0.5
+1. Removed module's CSS and JS files. They are empty and not required.
+2. Switched to $files->render() instead of wireRenderFile().
+3. Added option to check for an optionally use InputfieldAceExtended for code highlighting in PHP custom code textarea.
+4. Added option to specify number of rows for PHP custom code textarea.
+5. Refactored code to prevent any unnecessary re-rendering of output, thanks @adrianbj.
+6. Removed option to search for files to render in this modules folder.
+7. Changed module license to MIT.
 
 ### Version 0.0.4
 Enhancements to support for rendering PHP, CSS and JavaScript files.
