@@ -1,1 +1,0 @@
-/*Use this file for scripts (js) for your renderend Markup in the page edit in admin, i.e. in the rendered InputfieldRuntimeMarkup*/
