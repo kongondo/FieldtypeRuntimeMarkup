@@ -155,6 +155,9 @@ echo $pages->get('/about-us/')->runtime_markup;
 
 ## Changelog
 
+### Version 0.0.6
+Code refactoring for better methods sharing.
+
 ### Version 0.0.5
 1. Removed module's CSS and JS files. They are empty and not required.
 2. Switched to $files->render() instead of wireRenderFile().
