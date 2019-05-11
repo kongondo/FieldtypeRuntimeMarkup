@@ -37,7 +37,7 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		return array(
 			'title' => 'RuntimeMarkup',
 			'author' => 'Francis Otieno (Kongondo)',
-			'version' => '0.0.5',
+			'version' => '0.0.6',
 			'href' => 'https://processwire.com/talk/topic/10804-module-runtimemarkup-fieldtype-inputfield/',
 			'summary' => 'Allows rendering of custom markup within page editor and frontend via custom PHP snippet set in the field.',
 			);
@@ -64,18 +64,11 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		## direct code vs render file mode
 		$inputfield->set('runtimeCodeMode', $field->runtimeCodeMode);
 
-		## PHP code mode ##
-		$inputfield->set('runtimeCustomPHPCode', $field->runtimeCustomPHPCode);
-		$inputfield->set('useAceExtended', $field->useAceExtended);
-
 		## render file mode ##
 
 		// default path
 		$inputfield->set('defaultPath', $field->defaultPath);
 
-		// PHP file
-		$inputfield->set('renderPHPFileMode', $field->renderPHPFileMode);
-		$inputfield->set('renderPHPFile', $field->renderPHPFile);
 		// JS file
 		$inputfield->set('addJSFileMode', $field->addJSFileMode);
 		$inputfield->set('addJSFile', $field->addJSFile);
@@ -84,9 +77,6 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		$inputfield->set('addCSSFileMode', $field->addCSSFileMode);
 		$inputfield->set('addCSSFile', $field->addCSSFile);
 		$inputfield->set('addCSSFileSuppressErrors', $field->addCSSFileSuppressErrors);
-
-		// this module's URL
-		$inputfield->set('moduleURL', $this->name);
 
 		return $inputfield;
 	}
@@ -151,6 +141,7 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		$f->label = $this->_('Custom PHP Code to Generate Markup');
 		$f->description = $this->_('Enter valid PHP code to return custom markup. This statement has access to the $page and $pages API variables, where $page refers to the page being edited. The snippet should only return strings and integers. Anything else will result in an error.');
 		$f->notes = $this->_('Example: return $page->parent->parent->title;');
+		// @note: @todo? seems not to work with Ace Extended?
 		$f->rows = $field->codeRows ? $field->codeRows: 7;
 		$f->showIf = 'runtimeCodeMode=1';
 		$f->requiredIf = 'runtimeCodeMode=1';
@@ -341,34 +332,6 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 	}
 
 	/**
-	 * Create the populated runtime markup string for the given $field on $page
-	 *
-	 * @return str Non-formatted markup string
-	 *
-	 */
-	protected function renderMarkup(Page $page, Field $field) {
-		// @note: currently, only runtime PHP code returned here, i.e. no rendering PHP files
-		// this means if using the option to render PHP files, there will be no frontend output
-		// that's OK as this field is not really meant for frontend use
-		if(1 === (int) $field->runtimeCodeMode && $field->runtimeCustomPHPCode) {
-			// locally scope $pages and $input to eval()
-			$pages = $this->wire('pages');
-			//$input = $this->wire('input');// @TODO...OK?
-			// if using Ace Extended strip out <?php from string to be eval'ed
-			// thanks @adrian
-			// @note: we always strip the php tag, just in case dev decides not to use Ace anymore but forgets to remove the tag
-			$evalString = eval(str_replace('<?php','',$field->runtimeCustomPHPCode));
-
-			// since we are dealing with custom PHP code but also want to make sure that only markup is returned
-			// if eval() returns anything other than a string or an integer, we throw an error (e.g. if an object or array is returned)
-			if (is_string($evalString) || is_int($evalString)) return $evalString;
-			// we need to check if we are in admin. Otherwise with an error, in the frontend the name of the the Fieldtype is returned if we echo out the field
-			elseif($this->wire('process')->className() == 'ProcessPageEdit') return $this->error($this->_('Only strings and integers should be returned by your custom code! Check if your code is valid.'));
-		}
-
-	}
-
-	/**
 	 * Render a markup string of the value
 	 *
 	 * This is important for correctly rendering markup output in listers.
@@ -397,11 +360,11 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 	}
 
 	public function ___wakeupValue(Page $page, Field $field, $value) {
-		return $this->renderMarkup($page, $field);
+		return $this->getMarkup($page, $field);
 	}
 
 	public function ___sleepValue(Page $page, Field $field, $value) {
-		// return $this->renderMarkup($page, $field);
+		// return $this->getMarkup($page, $field);
 		return true;// thanks @adrian [prevent any unnecessary re-rendering of the output]
 	}
 
@@ -412,7 +375,7 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 
 	public function ___loadPageField(Page $page, Field $field) {
 		// generate value at runtime rather than loading from DB
-		// return $this->renderMarkup($page, $field);
+		// return $this->getMarkup($page, $field);
 		return true;// thanks @adrian [prevent any unnecessary re-rendering of the output]
 	}
 
@@ -456,5 +419,183 @@ class FieldtypeRuntimeMarkup extends FieldtypeText {
 		return null;
 	}
 
+	/* ########################## UTILITIES ########################## */
 
+
+	/**
+	 * Get the populated runtime markup string for the given $field on $page
+	 *
+	 * @access protected
+	 * @param Page $page The current page.
+	 * @param Field $field This field on the current page.
+	 * @return string Non-formatted markup string
+	 *
+	 */
+	protected function getMarkup(Page $page, Field $field) {
+
+		$out = "";
+
+		if(1 === (int) $field->runtimeCodeMode && $field->runtimeCustomPHPCode) {
+			// locally scope $pages and $input to eval()
+			$pages = $this->wire('pages');
+			$input = $this->wire('input');
+			// if using Ace Extended strip out <?php from string to be eval'ed
+			// thanks @adrian
+			// @note: we always strip the php tag, just in case dev decides not to use Ace anymore but forgets to remove the tag
+			$evalString = eval(str_replace('<?php','',$field->runtimeCustomPHPCode));
+
+			// since we are dealing with custom PHP code but also want to make sure that only markup is returned
+			// if eval() returns anything other than a string or an integer, we throw an error (e.g. if an object or array is returned)
+			if (is_string($evalString) || is_int($evalString)) $out = $evalString;
+			// we need to check if we are in admin. Otherwise with an error, in the frontend the name of the the Fieldtype is returned if we echo out the field
+			elseif($this->wire('process')->className() == 'ProcessPageEdit') return $this->error($this->_('Only strings and integers should be returned by your custom code! Check if your code is valid.'));
+		}
+
+		// expecting to $files->render() files
+		// @note: just being extra sure with check
+		elseif(2 === (int) $field->runtimeCodeMode) $out = $this->runtimePHPFile($page, $field,(int)$field->renderPHPFileMode);
+
+		return $out;
+
+	}
+
+	/**
+	 *
+	 * Render custom PHP file with markup for render().
+	 *
+	 * Uses $files->render().
+	 * $files->render() will generate error if no file found.
+	 *
+	 * @access private
+	 * @param Page $page The current page.
+	 * @param Field $field This field on the current page.
+	 * @param integer $mode Whether file name identical to field or custom name.
+	 * @return string $out content of rendered file.
+	 *
+	 */
+	private function runtimePHPFile(Page $page, Field $field, $mode) {
+
+		$out = '';
+		$files = $this->wire('files');
+		$rtmUtilities = new RuntimeMarkupUtilities();
+		$options = array();
+
+		// @note: we do not want to throw exceptions. We want a a nice error displayed on rendered page
+		$options['throwExceptions'] = false;
+		// @note: $files->render() defaults to /site/templates/
+		$options['defaultPath'] = $rtmUtilities->getDefaultPath($field->defaultPath);// @note: getting PATH not URL
+
+		// pass the page being edited and $pages as variables to $files->render()
+		// this enables use of $page as the page being edited
+		// otherwise, $page will be the Admin 'Edit' page
+		$vars = array('page' => $page, 'pages' => $this->wire('pages'), 'input' => $this->wire('input'));
+
+		// render file with same name as this field
+		// @note: here, sub-folders cannot be specified
+		if(1 == $mode) {
+			$filename = $field->name;
+			$out = $files->render($filename, $vars, $options);
+		}
+
+		// render PHP file(s) with different name and/or more than 1
+		else {
+			// $filenames is a csv string: convert to array
+			$filenames = explode(',', str_replace(' ', '', $field->renderPHPFile));
+			foreach ($filenames as $filename) $out .= $files->render($filename, $vars, $options);
+		}
+
+		return $out;
+
+	}
+
+
+}
+
+####################################### - HELPER CLASS - #######################################
+
+class RuntimeMarkupUtilities extends WireData {
+
+	/**
+	 *
+	 * Return the formatted default/root path/url for files as per field's settings.
+	 *
+	 * @access public
+	 * @param integer $defaultPath Whether site/templates or site/modules is the default path to files to render.
+	 * @param integer $mode Whether to return path (1 )vs URL (2).
+	 * @return string $defaultPath Default path for rendered/added files
+	 *
+	 */
+	public function getDefaultPath($defaultPath, $mode=1) {
+		$config = $this->wire('config');
+		$root = $mode == 2 ? $config->urls : $config->paths;
+		if(2 === (int) $defaultPath) $defaultPath =  $root->siteModules;// /site/modules/
+		else $defaultPath =  $root->templates;// /site/templates/
+		return $defaultPath;
+	}
+
+	/**
+	 *
+	 * Check if specified file exists.
+	 *
+	 * @access public
+	 * @param string $file Path|File to locate.
+	 * @return bool $valid Whether $file found or not.
+	 *
+	 */
+	public function validateRuntimeJSCSSFile($file) {
+		$valid = false;
+		if (is_file($file)) $valid = true;
+		return $valid;
+	}
+
+	/**
+	 *
+	 * Convert directory separators to linux style (/).
+	 *
+	 * @credits: @ryan (adapted from $files->render()).
+	 *
+	 * @access public
+	 * @param string $filename Path|Filename to convert.
+	 * @return string $filename Path|Filename with converted directory separators.
+	 *
+	 */
+	public function convertDirectorySeparator($filename) {
+		if(DIRECTORY_SEPARATOR != '/') $filename = str_replace(DIRECTORY_SEPARATOR, '/', $filename);
+		return $filename;
+	}
+
+	/**
+	 *
+	 * Add CSS/JS extension to file if one does not exist.
+	 *
+	 * @credits: @ryan (adapted from $files->render()).
+	 *
+	 * @access public
+	 * @param string $filename Path|Filename to add extension to.
+	 * @param string $ext Extension to add, .css or .js.
+	 * @return string $filename Path|Filename with extension added.
+	 *
+	 */
+	public function addExtension($filename, $ext) {
+		if(!strrpos(basename($filename), '.')) $filename .= $ext;
+		return $filename;
+	}
+
+	/**
+	 *
+	 * Check if file has double dots.
+	 *
+	 * We don't allow this.
+	 * @credits: @ryan (adapted from $files->render()).
+	 *
+	 * @access public
+	 * @param string $filename Path|Filename to validate.
+	 * @return bool $valid Whether $filename valid or not.
+	 *
+	 */
+	public function checkDotDot($filename) {
+		$valid = true;
+		if(strpos($filename, '..')) $valid = false;
+		return $valid;
+	}
 }
