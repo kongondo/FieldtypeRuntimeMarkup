@@ -182,12 +182,12 @@ class InputfieldRuntimeMarkup extends Inputfield {
 	 * Process input for the values sent from this field
 	 *
 	 */
-	/*public function ___processInput(WireInputData $input) {
+	public function ___processInput(WireInputData $input) {
 
 		//nothing to do here
 		//no values sent
-
-	}*/
+		//but keep this as empty override in order to skip the "changed field" message in debug mode	
+	}
 
 
 
